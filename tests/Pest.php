@@ -31,6 +31,7 @@ function recordEvent(string $type, ?string $channel = null, array $extra = []): 
         aal: $extra['aal'] ?? null,
         amr: isset($extra['amr']) && is_array($extra['amr']) ? array_values($extra['amr']) : null,
         metadata: isset($extra['metadata']) && is_array($extra['metadata']) ? $extra['metadata'] : [],
+        country: isset($extra['country']) && is_string($extra['country']) ? $extra['country'] : null,
     ));
 }
 

@@ -22,6 +22,21 @@ it('counts laravel-rebel-channels router sends (channel.verification.started/app
         ->assertJsonPath('rows.0.verify_conversion', 0.5);
 });
 
+it('reports delivered rate and cost from delivery-receipt webhook events', function (): void {
+    recordEvent('channel.verification.started', 'sms', ['provider' => 'twilio']);
+    recordEvent('channel.verification.started', 'sms', ['provider' => 'twilio']);
+    recordEvent('channel.verification.delivered', 'sms', ['provider' => 'twilio', 'metadata' => ['price' => 0.04, 'price_unit' => 'EUR']]);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/channels/performance?days=1')
+        ->assertOk()
+        ->assertJsonPath('rows.0.channel', 'sms')
+        ->assertJsonPath('rows.0.sent', 2)
+        ->assertJsonPath('rows.0.delivered_rate', 0.5)
+        ->assertJsonPath('rows.0.cost_amount', 0.04)
+        ->assertJsonPath('rows.0.cost_currency', 'EUR');
+});
+
 it('returns per-channel performance rows without fabricating cost/latency', function (): void {
     recordEvent('email_otp.sent', 'sms');
     recordEvent('email_otp.sent', 'sms');

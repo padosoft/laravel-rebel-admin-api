@@ -40,11 +40,11 @@ final class ChannelsController
             ->whereNotNull('channel')
             ->when($channelFilter !== '', fn (Builder $q) => $q->where('channel', $channelFilter))
             ->when($providerFilter !== '', fn (Builder $q) => $q->where('provider', $providerFilter))
-            ->select('channel', 'provider', 'event_type', 'created_at')
+            ->select('channel', 'provider', 'event_type', 'created_at', 'metadata')
             ->orderBy('created_at')
             ->cursor();
 
-        /** @var array<string, array{sent: int, verified: int, providers: array<string, int>}> $byChannel */
+        /** @var array<string, array{sent: int, verified: int, delivered: int, cost: float, currency: ?string, providers: array<string, int>}> $byChannel */
         $byChannel = [];
         $hourBuckets = $this->hourBuckets($period);
         /** @var array<string, array<string, int>> $sentByHour per channel, per hour bucket */
@@ -60,7 +60,7 @@ final class ChannelsController
                 continue;
             }
 
-            $byChannel[$channel] ??= ['sent' => 0, 'verified' => 0, 'providers' => []];
+            $byChannel[$channel] ??= ['sent' => 0, 'verified' => 0, 'delivered' => 0, 'cost' => 0.0, 'currency' => null, 'providers' => []];
 
             if ($this->isSend($type)) {
                 $byChannel[$channel]['sent']++;
@@ -73,6 +73,16 @@ final class ChannelsController
                 }
             } elseif ($this->isVerify($type)) {
                 $byChannel[$channel]['verified']++;
+            } elseif ($type === 'channel.verification.delivered') {
+                // Delivery receipts from the provider's status webhook (e.g. Twilio).
+                $byChannel[$channel]['delivered']++;
+                $meta = $this->decodeMetadata($data['metadata'] ?? null);
+                if (is_numeric($meta['price'] ?? null)) {
+                    $byChannel[$channel]['cost'] += (float) $meta['price'];
+                }
+                if (is_string($meta['price_unit'] ?? null) && $meta['price_unit'] !== '') {
+                    $byChannel[$channel]['currency'] = $meta['price_unit'];
+                }
             }
         }
 
@@ -81,16 +91,19 @@ final class ChannelsController
         $out = [];
         foreach ($byChannel as $channel => $stats) {
             $sent = $stats['sent'];
+            $delivered = $stats['delivered'];
             $out[] = [
                 'channel' => $channel,
                 'provider' => $this->topProvider($stats['providers']),
                 'sent' => $sent,
-                'delivered_rate' => null,
+                // Until the provider's delivery webhook reports receipts, delivered/cost stay
+                // null (unknown) rather than a fabricated 0% — honest empty state.
+                'delivered_rate' => $delivered > 0 && $sent > 0 ? round($delivered / $sent, 3) : null,
                 'fallback_rate' => null,
                 'latency_p50_ms' => null,
                 'latency_p95_ms' => null,
-                'cost_amount' => null,
-                'cost_currency' => null,
+                'cost_amount' => $delivered > 0 ? round($stats['cost'], 4) : null,
+                'cost_currency' => $stats['currency'],
                 'verify_conversion' => $sent > 0 ? round($stats['verified'] / $sent, 3) : 0.0,
                 'fraud_flag' => false,
             ];
@@ -118,6 +131,20 @@ final class ChannelsController
     private function isVerify(string $type): bool
     {
         return str_ends_with($type, '.verified') || $type === 'channel.verification.approved';
+    }
+
+    /**
+     * @return array<array-key, mixed>
+     */
+    private function decodeMetadata(mixed $raw): array
+    {
+        if (! is_string($raw) || $raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     /**

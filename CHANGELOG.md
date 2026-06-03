@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-06-03
+
+### Added
+- **Delivery receipts in Channel Performance.** `channels/performance` now derives `delivered_rate` and `cost_amount`/`cost_currency` from `channel.verification.delivered` events (the provider status webhooks, e.g. Twilio). Still null until receipts arrive — no fabricated values.
+- **Country + User-Agent in the audit.** `auth-events` list returns `country`; the detail returns `country` and `user_agent_hash` (captured by core 0.1.1 + bridge-fortify 0.1.1).
+
 ## [0.1.5] - 2026-06-03
 
 ### Fixed

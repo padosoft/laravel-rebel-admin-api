@@ -77,19 +77,23 @@ Depends on [`padosoft/laravel-rebel-core`](https://github.com/padosoft/laravel-r
 
 Building an auth-observability dashboard, compared:
 
-| Capability | **Rebel Admin API** | Generic admin panel (Nova/Filament) on raw tables | Hand-rolled queries |
-|---|:---:|:---:|:---:|
-| Purpose-built auth metrics/funnels | ✅ | ❌ | ➖ |
-| Pre-aggregated hourly buckets (fast) | ✅ | ❌ | ❌ |
-| Fail-closed authorization by default | ✅ | ➖ | ❌ |
-| Explicit cross-tenant vs scoped reads | ✅ | ❌ | ❌ |
-| No plaintext PII exposure | ✅ | ➖ (depends) | ➖ |
-| Validated keyset pagination | ✅ | ➖ | ❌ |
-| Versioned, documented JSON contract | ✅ | ❌ | ❌ |
+| Capability | **Rebel Admin API** | Shopify | Generic admin panel (Nova/Filament) on raw tables | Hand-rolled queries |
+|---|:---:|:---:|:---:|:---:|
+| Purpose-built auth metrics/funnels | ✅ | ❌ | ❌ | ➖ |
+| Pre-aggregated hourly buckets (fast) | ✅ | ❌ | ❌ | ❌ |
+| Fail-closed authorization by default | ✅ | ➖ | ➖ | ❌ |
+| Explicit cross-tenant vs scoped reads | ✅ | ❌ | ❌ | ❌ |
+| No plaintext PII exposure | ✅ | ➖ | ➖ (depends) | ➖ |
+| Validated keyset pagination | ✅ | ➖ | ➖ | ❌ |
+| Versioned, documented JSON contract | ✅ | ➖ | ❌ | ❌ |
+| Self-hosted, runs in your app | ✅ | ❌ | ✅ | ✅ |
 
-> Legend: ✅ built-in · ➖ partial / DIY · ❌ not available. A generic CRUD panel over the raw
+> Legend: ✅ built-in · ➖ partial / hosted-only / DIY · ❌ not available. A generic CRUD panel over the raw
 > tables can *show* rows, but it won't give you funnels, fail-closed access, tenant-explicit
 > reads or pre-aggregation — that's what this package is for.
+> Shopify is a closed, hosted commerce platform: it offers a hosted admin over *its own*
+> data, but you can't self-host it, query a tenant-scoped read API of your own auth events,
+> or consume an OpenAPI contract for these primitives — it's a black box, not a library.
 
 ---
 

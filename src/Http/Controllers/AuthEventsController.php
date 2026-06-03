@@ -67,7 +67,7 @@ final class AuthEventsController
 
         $events = $query->limit($perPage)->get([
             'id', 'event_type', 'guard', 'channel', 'provider', 'purpose',
-            'aal', 'amr', 'risk_score', 'identifier_hmac', 'created_at',
+            'aal', 'amr', 'risk_score', 'identifier_hmac', 'country', 'created_at',
         ]);
 
         $last = $events->last();
@@ -113,6 +113,8 @@ final class AuthEventsController
                 'risk_score' => $event->getAttribute('risk_score'),
                 'identifier_hmac' => $event->getAttribute('identifier_hmac'),
                 'ip_hmac' => $event->getAttribute('ip_hmac'),
+                'user_agent_hash' => $event->getAttribute('user_agent_hash'),
+                'country' => $event->getAttribute('country'),
                 'created_at' => $event->getAttribute('created_at'),
                 'metadata' => $this->sanitize($metadata),
             ],

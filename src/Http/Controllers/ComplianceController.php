@@ -36,9 +36,73 @@ final class ComplianceController
 
         return response()->json([
             'nist' => ['aal_distribution' => $this->aalDistribution($period, $tenant)],
+            'amr' => $this->amrDistribution($period, $tenant),
             'psd2' => $this->psd2($period, $tenant),
             'gdpr' => $this->gdpr($now),
         ]);
+    }
+
+    /**
+     * The distribution of authentication-method references (AMR) across events in the window.
+     * The `amr` column is a JSON array per event (e.g. ["otp","email"]); we flatten every
+     * array, count each factor, and normalize to fractions summing to ~1. Real data only —
+     * an empty object when no event carries AMR.
+     *
+     * @return array<string, float>
+     */
+    private function amrDistribution(Period $period, ?string $tenant): array
+    {
+        $rows = $this->events($period, $tenant)
+            ->whereNotNull('amr')
+            ->select('amr')
+            ->cursor();
+
+        /** @var array<string, int> $counts */
+        $counts = [];
+        $sum = 0;
+        foreach ($rows as $row) {
+            $raw = ((array) $row)['amr'] ?? null;
+            foreach ($this->decodeAmr($raw) as $factor) {
+                $counts[$factor] = ($counts[$factor] ?? 0) + 1;
+                $sum++;
+            }
+        }
+
+        if ($sum === 0) {
+            return [];
+        }
+
+        $distribution = [];
+        foreach ($counts as $factor => $count) {
+            $distribution[$factor] = round($count / $sum, 3);
+        }
+
+        arsort($distribution);
+
+        return $distribution;
+    }
+
+    /**
+     * Decode one event's AMR column into a list of factor strings. The column is stored as a
+     * JSON array; tolerate both the decoded array (some drivers cast it) and the raw string.
+     *
+     * @return list<string>
+     */
+    private function decodeAmr(mixed $raw): array
+    {
+        $decoded = is_string($raw) ? json_decode($raw, true) : $raw;
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $factors = [];
+        foreach ($decoded as $factor) {
+            if (is_string($factor) && $factor !== '') {
+                $factors[] = $factor;
+            }
+        }
+
+        return $factors;
     }
 
     /**

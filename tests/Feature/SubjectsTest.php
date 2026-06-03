@@ -5,8 +5,67 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\DB;
 
 it('rejects unauthenticated subject requests with 401', function (): void {
+    $this->getJson('/rebel/admin/api/v1/subjects')->assertStatus(401);
     $this->getJson('/rebel/admin/api/v1/subjects/42/devices')->assertStatus(401);
     $this->getJson('/rebel/admin/api/v1/subjects/42/sessions')->assertStatus(401);
+});
+
+it('lists subjects derived from the audit log with a masked id', function (): void {
+    recordEvent('login.succeeded', null, ['subject_id' => 'cust_998877']);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/subjects')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.subject', 'cust_998877')
+        ->assertJsonPath('data.0.masked', 'cust_9…')
+        ->assertJsonPath('meta.total', 1);
+});
+
+it('enriches subjects with device and session counts from the registry', function (): void {
+    recordEvent('login.succeeded', null, ['subject_id' => '42']);
+    makeDevice('42', trusted: true);
+    makeSession('42', 'active');
+    makeSession('42', 'active');
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/subjects')
+        ->assertOk()
+        ->assertJsonPath('data.0.subject', '42')
+        ->assertJsonPath('data.0.devices', 1)
+        ->assertJsonPath('data.0.sessions', 2)
+        ->assertJsonPath('data.0.last_seen_at', fn ($v): bool => is_string($v) && $v !== '');
+});
+
+it('includes registry-only subjects that have no audit events', function (): void {
+    makeSession('registry-only', 'active');
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/subjects')
+        ->assertOk()
+        ->assertJsonPath('data.0.subject', 'registry-only')
+        ->assertJsonPath('data.0.sessions', 1)
+        ->assertJsonPath('data.0.last_seen_at', null);
+});
+
+it('scopes the subject list to a tenant', function (): void {
+    recordEvent('login.succeeded', null, ['subject_id' => 'a', 'tenant_id' => 'tenant-a']);
+    recordEvent('login.succeeded', null, ['subject_id' => 'b', 'tenant_id' => 'tenant-b']);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/subjects?tenant=tenant-a')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.subject', 'a');
+});
+
+it('returns an honest empty subject list with no data', function (): void {
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/subjects')
+        ->assertOk()
+        ->assertJsonPath('data', [])
+        ->assertJsonPath('meta.total', 0);
 });
 
 it('lists a subject devices with truncated fingerprint', function (): void {

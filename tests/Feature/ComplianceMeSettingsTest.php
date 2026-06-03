@@ -24,6 +24,30 @@ it('reports the NIST AAL distribution and GDPR retention tiers', function (): vo
         ->assertJsonStructure(['psd2' => ['sca_events', 'dynamic_linked', 'exemptions'], 'gdpr' => ['retention_tiers', 'pending_erasures']]);
 });
 
+it('computes the AMR distribution from real event factors', function (): void {
+    // otp appears in 3 events, email in 2, passkey in 1 → 6 factor occurrences total.
+    recordEvent('login.succeeded', null, ['amr' => ['otp', 'email']]);
+    recordEvent('login.succeeded', null, ['amr' => ['otp', 'email']]);
+    recordEvent('login.succeeded', null, ['amr' => ['otp']]);
+    recordEvent('login.succeeded', null, ['amr' => ['passkey']]);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/compliance/overview?days=1')
+        ->assertOk()
+        ->assertJsonPath('amr.otp', 0.5)
+        ->assertJsonPath('amr.email', 0.333)
+        ->assertJsonPath('amr.passkey', 0.167);
+});
+
+it('returns an empty AMR object when no event carries factors', function (): void {
+    recordEvent('login.succeeded', null, ['aal' => Aal::Aal1]);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/compliance/overview?days=1')
+        ->assertOk()
+        ->assertJsonPath('amr', []);
+});
+
 it('counts PSD2 SCA events from verified step-up challenges', function (): void {
     DB::table('rebel_step_up_challenges')->insert([
         'id' => (string) Str::ulid(),

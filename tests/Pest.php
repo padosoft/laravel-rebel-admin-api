@@ -22,11 +22,14 @@ function recordEvent(string $type, ?string $channel = null, array $extra = []): 
     app(AuditLogger::class)->record(new AuditEvent(
         type: $type,
         guard: isset($extra['guard']) && is_string($extra['guard']) ? $extra['guard'] : null,
+        subjectType: isset($extra['subject_type']) && is_string($extra['subject_type']) ? $extra['subject_type'] : null,
+        subjectId: isset($extra['subject_id']) && is_string($extra['subject_id']) ? $extra['subject_id'] : null,
         tenantId: isset($extra['tenant_id']) && is_string($extra['tenant_id']) ? $extra['tenant_id'] : null,
         channel: $channel,
         provider: isset($extra['provider']) && is_string($extra['provider']) ? $extra['provider'] : null,
         purpose: isset($extra['purpose']) && is_string($extra['purpose']) ? $extra['purpose'] : null,
         aal: $extra['aal'] ?? null,
+        amr: isset($extra['amr']) && is_array($extra['amr']) ? array_values($extra['amr']) : null,
         metadata: isset($extra['metadata']) && is_array($extra['metadata']) ? $extra['metadata'] : [],
     ));
 }

@@ -149,10 +149,11 @@ Most list endpoints accept the shared query parameters `tenant`, `from`, `to`,
 | `GET /security/overview` | §3.1 | `{ period, generated_at, kpis{…}, timeseries, open_anomalies, providers }` |
 | `GET /otp/funnel?channel=&guard=` | §3.2 | `{ stages: [...], resend_rate }` |
 | `GET /step-up/funnel?purpose=` | §3.2 | `{ by_purpose: [...] }` |
-| `GET /channels/performance?channel=&provider=&country=` | §3.3 | `{ rows: [...], timeseries }` |
+| `GET /channels/performance?channel=&provider=` | §3.3 | `{ rows: [...], timeseries }` — real per-channel `sent` / `verify_conversion` from the event log; delivery/latency/cost are `null` (not captured, never fabricated) |
 | `GET /providers/health` | §3.4 | `{ providers: [...] }` |
 | `GET /auth-events?type=&guard=&channel=&provider=&per_page=&before=&before_id=` | §3.5 | `{ data, per_page, next_before, next_before_id }` |
 | `GET /auth-events/{id}` | §3.5 | `{ data: { …, metadata (sanitized) } }` |
+| `GET /subjects?per_page=` | §3.6 | `{ data: [ { subject, masked, devices, sessions, last_seen_at } ], meta }` — searchable subject list (masked ids, never raw PII) |
 | `GET /subjects/{subject}/devices` | §3.6 | `{ devices: [...] }` |
 | `GET /subjects/{subject}/sessions` | §3.6 | `{ sessions: [...] }` |
 | `POST /subjects/{subject}/sessions/{id}/revoke` | §3.6 | `{ revoked: true }` |
@@ -166,7 +167,7 @@ Most list endpoints accept the shared query parameters `tenant`, `from`, `to`,
 | `POST /anomalies/{case}/actions` | §3.8 | `{ ok, action }` (`mitigate` requires `confirm:true`) |
 | `POST /ai/anomalies/{case}/explain` | §3.9 | `{ explanation, confidence, sources }` |
 | `POST /ai/policies/suggest` | §3.9 | `{ draft_rule, rationale }` |
-| `GET /compliance/overview` | §3.10 | `{ nist, psd2, gdpr }` |
+| `GET /compliance/overview` | §3.10 | `{ nist, amr, psd2, gdpr }` — `amr` is the real factor distribution (otp/passkey/…) flattened from the event log |
 | `GET /settings` · `PUT /settings/{key}` | — | tenant-scoped key/value settings |
 
 Example:

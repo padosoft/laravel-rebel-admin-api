@@ -16,10 +16,11 @@ use Psr\Clock\ClockInterface;
 /**
  * GET {prefix}/channels/performance — per-channel delivery metrics for §3.3.
  *
- * Derived honestly from `rebel_auth_events`: "sent" counts the delivery events on a channel
- * and "verify_conversion" relates verified OTPs to sends. Cost/latency are NOT fabricated —
- * when the event log carries no such signal they are returned as null/zero, so the panel can
- * show an honest empty state rather than invented traffic.
+ * Derived honestly from `rebel_auth_events`: "sent" counts the send/request events on a
+ * channel (any `*.requested` / `*.sent` event), and "verify_conversion" relates the
+ * `*.verified` events on that channel to its sends. Delivery receipts, fallback, latency and
+ * cost are NOT captured anywhere in the event log yet, so they are returned as null (the panel
+ * shows an honest "not measured" state) — we never fabricate traffic or telemetry.
  */
 final class ChannelsController
 {
@@ -39,54 +40,141 @@ final class ChannelsController
             ->whereNotNull('channel')
             ->when($channelFilter !== '', fn (Builder $q) => $q->where('channel', $channelFilter))
             ->when($providerFilter !== '', fn (Builder $q) => $q->where('provider', $providerFilter))
-            ->whereIn('event_type', ['email_otp.sent', 'email_otp.verified', 'email_otp.requested'])
-            ->groupBy('channel', 'provider', 'event_type')
-            ->selectRaw('channel, provider, event_type, COUNT(*) as total')
-            ->get();
+            ->select('channel', 'provider', 'event_type', 'created_at')
+            ->orderBy('created_at')
+            ->cursor();
 
-        /** @var array<string, array{channel: string, provider: string|null, sent: int, verified: int}> $byChannel */
+        /** @var array<string, array{sent: int, verified: int, providers: array<string, int>}> $byChannel */
         $byChannel = [];
+        $hourBuckets = $this->hourBuckets($period);
+        /** @var array<string, array<string, int>> $sentByHour per channel, per hour bucket */
+        $sentByHour = [];
+
         foreach ($rows as $row) {
             $data = (array) $row;
             $channel = is_string($data['channel'] ?? null) ? $data['channel'] : null;
-            $provider = is_string($data['provider'] ?? null) ? $data['provider'] : null;
+            $provider = is_string($data['provider'] ?? null) && $data['provider'] !== '' ? $data['provider'] : null;
             $type = is_string($data['event_type'] ?? null) ? $data['event_type'] : null;
-            $total = $data['total'] ?? 0;
-            $count = is_numeric($total) ? (int) $total : 0;
+            $createdAt = is_string($data['created_at'] ?? null) ? $data['created_at'] : null;
             if ($channel === null || $type === null) {
                 continue;
             }
 
-            $key = $channel.'|'.($provider ?? '');
-            $byChannel[$key] ??= ['channel' => $channel, 'provider' => $provider, 'sent' => 0, 'verified' => 0];
-            if ($type === 'email_otp.sent') {
-                $byChannel[$key]['sent'] += $count;
-            } elseif ($type === 'email_otp.verified') {
-                $byChannel[$key]['verified'] += $count;
+            $byChannel[$channel] ??= ['sent' => 0, 'verified' => 0, 'providers' => []];
+
+            if ($this->isSend($type)) {
+                $byChannel[$channel]['sent']++;
+                if ($provider !== null) {
+                    $byChannel[$channel]['providers'][$provider] = ($byChannel[$channel]['providers'][$provider] ?? 0) + 1;
+                }
+                if ($createdAt !== null) {
+                    $hour = CarbonImmutable::parse($createdAt)->startOfHour()->format('Y-m-d H:i:s');
+                    $sentByHour[$channel][$hour] = ($sentByHour[$channel][$hour] ?? 0) + 1;
+                }
+            } elseif ($this->isVerify($type)) {
+                $byChannel[$channel]['verified']++;
             }
         }
 
+        ksort($byChannel);
+
         $out = [];
-        foreach ($byChannel as $stats) {
+        foreach ($byChannel as $channel => $stats) {
+            $sent = $stats['sent'];
             $out[] = [
-                'channel' => $stats['channel'],
-                'provider' => $stats['provider'],
-                'sent' => $stats['sent'],
-                'delivered_rate' => $stats['sent'] > 0 ? 1.0 : 0.0,
-                'fallback_rate' => 0.0,
+                'channel' => $channel,
+                'provider' => $this->topProvider($stats['providers']),
+                'sent' => $sent,
+                'delivered_rate' => null,
+                'fallback_rate' => null,
                 'latency_p50_ms' => null,
                 'latency_p95_ms' => null,
                 'cost_amount' => null,
                 'cost_currency' => null,
-                'verify_conversion' => $stats['sent'] > 0 ? round($stats['verified'] / $stats['sent'], 3) : 0.0,
+                'verify_conversion' => $sent > 0 ? round($stats['verified'] / $sent, 3) : 0.0,
                 'fraud_flag' => false,
             ];
         }
 
         return response()->json([
             'rows' => $out,
-            'timeseries' => [],
+            'timeseries' => $this->timeseries($hourBuckets, $sentByHour, array_keys($byChannel)),
         ]);
+    }
+
+    /**
+     * A "send" is any request/dispatch of a one-time credential on a channel: the explicit
+     * `*.requested` / `*.sent` events emitted by email-otp, the OTP drivers and the channel
+     * adapters (laravel-rebel-channels) all match.
+     */
+    private function isSend(string $type): bool
+    {
+        return str_ends_with($type, '.requested') || str_ends_with($type, '.sent');
+    }
+
+    private function isVerify(string $type): bool
+    {
+        return str_ends_with($type, '.verified');
+    }
+
+    /**
+     * @param  array<string, int>  $providers
+     */
+    private function topProvider(array $providers): ?string
+    {
+        if ($providers === []) {
+            return null;
+        }
+
+        arsort($providers);
+
+        return (string) array_key_first($providers);
+    }
+
+    /**
+     * Per-bucket sent counts per channel over the window (honest, zero-filled buckets).
+     *
+     * @param  list<string>  $hours
+     * @param  array<string, array<string, int>>  $sentByHour
+     * @param  list<string>  $channels
+     * @return list<array{t: string, channel: string, sent: int}>
+     */
+    private function timeseries(array $hours, array $sentByHour, array $channels): array
+    {
+        $out = [];
+        foreach ($hours as $hour) {
+            $t = CarbonImmutable::createFromFormat('Y-m-d H:i:s', $hour, 'UTC')?->toIso8601String() ?? $hour;
+            foreach ($channels as $channel) {
+                $out[] = [
+                    't' => $t,
+                    'channel' => $channel,
+                    'sent' => $sentByHour[$channel][$hour] ?? 0,
+                ];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
+     * The ordered list of hour-bucket keys spanning the window (UTC, 'Y-m-d H:00:00').
+     *
+     * @return list<string>
+     */
+    private function hourBuckets(Period $period): array
+    {
+        $cursor = $period->from->utc()->startOfHour();
+        $end = $period->to->utc();
+
+        $hours = [];
+        $guard = 0;
+        while ($cursor <= $end && $guard < 24 * 92) {
+            $hours[] = $cursor->format('Y-m-d H:i:s');
+            $cursor = $cursor->addHour();
+            $guard++;
+        }
+
+        return $hours;
     }
 
     private function baseQuery(Period $period, ?string $tenant): Builder

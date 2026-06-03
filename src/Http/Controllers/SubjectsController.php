@@ -30,6 +30,131 @@ final class SubjectsController
         private readonly AdminAudit $audit,
     ) {}
 
+    /**
+     * GET {prefix}/subjects — the searchable subject list for the §3.6 Device & Session panel.
+     *
+     * Subjects are derived from the audit log (distinct `subject_id` in `rebel_auth_events`)
+     * and, when laravel-rebel-sessions is installed, enriched with live device/session counts.
+     * The raw subject id is never returned verbatim — only a privacy-preserving masked form.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $tenant = $this->tenant($request);
+        $perPage = max(1, min(100, $request->integer('per_page', 25)));
+
+        $hasDevices = Schema::hasTable('rebel_devices');
+        $hasSessions = Schema::hasTable('rebel_sessions');
+
+        // Last-seen per subject from the audit log (DB-aggregated, never loaded into PHP).
+        $eventQuery = DB::table('rebel_auth_events')
+            ->whereNotNull('subject_id')
+            ->groupBy('subject_id')
+            ->select('subject_id')
+            ->selectRaw('MAX(created_at) as last_seen_at');
+        if ($tenant !== null) {
+            $eventQuery->where('tenant_id', $tenant);
+        }
+
+        /** @var array<string, array{subject: string, last_seen_at: string|null, devices: int, sessions: int}> $subjects */
+        $subjects = [];
+        foreach ($eventQuery->get() as $row) {
+            $data = (array) $row;
+            $subject = $this->str($data['subject_id'] ?? null);
+            if ($subject === null || $subject === '') {
+                continue;
+            }
+            $subjects[$subject] = [
+                'subject' => $subject,
+                'last_seen_at' => $this->str($data['last_seen_at'] ?? null),
+                'devices' => 0,
+                'sessions' => 0,
+            ];
+        }
+
+        // Fold in any subjects that exist only in the sessions/devices registries, and attach
+        // per-subject counts. Both tables are optional — guarded by Schema::hasTable above.
+        if ($hasDevices) {
+            $this->mergeCounts($subjects, 'rebel_devices', 'devices', $tenant);
+        }
+        if ($hasSessions) {
+            $this->mergeCounts($subjects, 'rebel_sessions', 'sessions', $tenant);
+        }
+
+        // Most-recently-seen first; subjects without events (registry-only) sort last.
+        uasort($subjects, fn (array $a, array $b): int => ($b['last_seen_at'] ?? '') <=> ($a['last_seen_at'] ?? ''));
+
+        $total = count($subjects);
+        $page = array_slice(array_values($subjects), 0, $perPage);
+
+        $data = array_map(fn (array $s): array => [
+            'subject' => $s['subject'],
+            'masked' => $this->mask($s['subject']),
+            'devices' => $s['devices'],
+            'sessions' => $s['sessions'],
+            'last_seen_at' => $this->iso($s['last_seen_at']),
+        ], $page);
+
+        return response()->json([
+            'data' => $data,
+            'meta' => ['total' => $total, 'per_page' => $perPage, 'returned' => count($data)],
+        ]);
+    }
+
+    /**
+     * Add per-subject row counts from an optional registry table, creating registry-only
+     * subjects as needed so they still appear in the panel search.
+     *
+     * @param  array<string, array{subject: string, last_seen_at: string|null, devices: int, sessions: int}>  $subjects
+     * @param  'devices'|'sessions'  $key
+     */
+    private function mergeCounts(array &$subjects, string $table, string $key, ?string $tenant): void
+    {
+        $query = DB::table($table)
+            ->whereNotNull('subject_id')
+            ->groupBy('subject_id')
+            ->select('subject_id')
+            ->selectRaw('COUNT(*) as total');
+        if ($tenant !== null) {
+            $query->where('tenant_id', $tenant);
+        }
+
+        foreach ($query->get() as $row) {
+            $data = (array) $row;
+            $subject = $this->str($data['subject_id'] ?? null);
+            if ($subject === null || $subject === '') {
+                continue;
+            }
+            $total = $data['total'] ?? 0;
+            $count = is_numeric($total) ? (int) $total : 0;
+
+            $subjects[$subject] ??= ['subject' => $subject, 'last_seen_at' => null, 'devices' => 0, 'sessions' => 0];
+            $subjects[$subject][$key] = $count;
+        }
+    }
+
+    /**
+     * A privacy-preserving masked form of the subject id — never expose the raw value. Keeps a
+     * short, recognizable prefix so an operator can correlate without seeing the whole id.
+     */
+    private function mask(string $subject): string
+    {
+        return mb_strlen($subject) > 6 ? mb_substr($subject, 0, 6).'…' : $subject;
+    }
+
+    /** Normalize a stored timestamp to ISO-8601, tolerating the DB's 'Y-m-d H:i:s' form. */
+    private function iso(?string $value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse($value)->toIso8601String();
+        } catch (\Throwable) {
+            return $value;
+        }
+    }
+
     /** GET {prefix}/subjects/{subject}/devices */
     public function devices(Request $request, string $subject): JsonResponse
     {
@@ -75,7 +200,9 @@ final class SubjectsController
                 'type' => $this->str($data['type'] ?? null),
                 'status' => $this->str($data['status'] ?? null),
                 'device_id' => $this->str($data['device_id'] ?? null),
+                'created_at' => $this->str($data['created_at'] ?? null),
                 'expires_at' => $this->str($data['expires_at'] ?? null),
+                'revoked_at' => $this->str($data['revoked_at'] ?? null),
             ];
         })->all();
 

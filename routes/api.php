@@ -44,6 +44,7 @@ Route::prefix(is_string($prefix) ? $prefix : 'rebel/admin/api/v1')
         Route::get('auth-events/{id}', [AuthEventsController::class, 'show'])->name('rebel-admin-api.auth-event');
 
         // §3.6 Device & session trust.
+        Route::get('subjects', [SubjectsController::class, 'index'])->name('rebel-admin-api.subjects');
         Route::get('subjects/{subject}/devices', [SubjectsController::class, 'devices'])->name('rebel-admin-api.subject-devices');
         Route::get('subjects/{subject}/sessions', [SubjectsController::class, 'sessions'])->name('rebel-admin-api.subject-sessions');
         Route::post('subjects/{subject}/sessions/{id}/revoke', [SubjectsController::class, 'revokeSession'])->name('rebel-admin-api.session-revoke');

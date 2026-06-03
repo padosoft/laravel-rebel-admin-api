@@ -139,11 +139,35 @@ File `config/rebel-admin-api.php`:
 
 All under `{prefix}` and gated by `EnsureAdmin`. Add `?tenant=<id>` to scope to one tenant.
 
-| Method & path | Returns |
-|---|---|
-| `GET /health` | `{ status, events_total, buckets_total, last_event_at }` |
-| `GET /security/overview?days=7` | `{ since, days, totals: { "<event_type>": <count> } }` |
-| `GET /auth-events?type=&guard=&channel=&provider=&per_page=&before=&before_id=` | `{ data: [...], per_page, next_before, next_before_id }` |
+Most list endpoints accept the shared query parameters `tenant`, `from`, `to`,
+`granularity` (`minute|hour|day`) — or the `days` shorthand — and endpoint-specific filters.
+
+| Method & path | Section | Returns |
+|---|---|---|
+| `GET /me` | identity | `{ id, permissions: [...] }` |
+| `GET /health` | — | `{ status, events_total, buckets_total, last_event_at }` |
+| `GET /security/overview` | §3.1 | `{ period, generated_at, kpis{…}, timeseries, open_anomalies, providers }` |
+| `GET /otp/funnel?channel=&guard=` | §3.2 | `{ stages: [...], resend_rate }` |
+| `GET /step-up/funnel?purpose=` | §3.2 | `{ by_purpose: [...] }` |
+| `GET /channels/performance?channel=&provider=&country=` | §3.3 | `{ rows: [...], timeseries }` |
+| `GET /providers/health` | §3.4 | `{ providers: [...] }` |
+| `GET /auth-events?type=&guard=&channel=&provider=&per_page=&before=&before_id=` | §3.5 | `{ data, per_page, next_before, next_before_id }` |
+| `GET /auth-events/{id}` | §3.5 | `{ data: { …, metadata (sanitized) } }` |
+| `GET /subjects/{subject}/devices` | §3.6 | `{ devices: [...] }` |
+| `GET /subjects/{subject}/sessions` | §3.6 | `{ sessions: [...] }` |
+| `POST /subjects/{subject}/sessions/{id}/revoke` | §3.6 | `{ revoked: true }` |
+| `POST /subjects/{subject}/logout-everywhere` | §3.6 | `{ revoked: <n> }` |
+| `POST /subjects/{subject}/devices/{id}/untrust` | §3.6 | `{ untrusted: true }` |
+| `GET /risk-rules` | §3.7 | `{ rules: [...] }` |
+| `POST /risk-rules` | §3.7 | `{ rule: {…} }` (persisted as a **draft** by default) |
+| `POST /risk-rules/simulate` | §3.7 | `{ decision, required_assurance, require_phishing_resistant, allowed_drivers, matched_rules, reasons }` |
+| `GET /anomalies?type=&severity=&status=&cursor=` | §3.8 | `{ data, meta: { next_cursor, has_more } }` |
+| `GET /anomalies/{case}` | §3.8 | `{ id, type, severity, status, signals, timeline, suggested_actions }` |
+| `POST /anomalies/{case}/actions` | §3.8 | `{ ok, action }` (`mitigate` requires `confirm:true`) |
+| `POST /ai/anomalies/{case}/explain` | §3.9 | `{ explanation, confidence, sources }` |
+| `POST /ai/policies/suggest` | §3.9 | `{ draft_rule, rationale }` |
+| `GET /compliance/overview` | §3.10 | `{ nist, psd2, gdpr }` |
+| `GET /settings` · `PUT /settings/{key}` | — | tenant-scoped key/value settings |
 
 Example:
 
@@ -153,9 +177,15 @@ curl -H "Authorization: Bearer <token>" \
 ```
 
 ```json
-{ "since": "2026-05-04T00:00:00+00:00", "days": 30,
-  "totals": { "login.succeeded": 12840, "login.failed": 311, "step_up.verified": 540 } }
+{ "period": "30d", "generated_at": "2026-06-03T10:00:00+00:00",
+  "kpis": { "login_requests": { "value": 12840, "delta_pct": 8.1, "sparkline": [/* … */] } },
+  "timeseries": [], "open_anomalies": [], "providers": [] }
 ```
+
+> The device/session, anomaly and AI endpoints read from the optional sibling packages
+> (`laravel-rebel-sessions`, `laravel-rebel-ai-guard`, `laravel-rebel-step-up`). When a
+> package is not installed the corresponding endpoints return an honest empty state / 404 —
+> they never error.
 
 ---
 

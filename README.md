@@ -149,10 +149,10 @@ Most list endpoints accept the shared query parameters `tenant`, `from`, `to`,
 | `GET /security/overview` | §3.1 | `{ period, generated_at, kpis{…}, timeseries, open_anomalies, providers }` |
 | `GET /otp/funnel?channel=&guard=` | §3.2 | `{ stages: [...], resend_rate }` |
 | `GET /step-up/funnel?purpose=` | §3.2 | `{ by_purpose: [...] }` |
-| `GET /channels/performance?channel=&provider=` | §3.3 | `{ rows: [...], timeseries }` — real per-channel `sent` / `verify_conversion` from the event log; delivery/latency/cost are `null` (not captured, never fabricated) |
+| `GET /channels/performance?channel=&provider=` | §3.3 | `{ rows: [...], timeseries }` — real per-channel `sent` / `verify_conversion`, plus `delivered_rate` + `cost_amount`/`cost_currency` derived from `channel.verification.delivered` events (provider status webhooks, e.g. Twilio). Latency stays `null` until captured — never fabricated |
 | `GET /providers/health` | §3.4 | `{ providers: [...] }` |
-| `GET /auth-events?type=&guard=&channel=&provider=&per_page=&before=&before_id=` | §3.5 | `{ data, per_page, next_before, next_before_id }` |
-| `GET /auth-events/{id}` | §3.5 | `{ data: { …, metadata (sanitized) } }` |
+| `GET /auth-events?...` | §3.5 | `{ data, per_page, next_before, next_before_id }` — each row includes `country`, `ip_hmac`, `user_agent_hash` |
+| `GET /auth-events/{id}` | §3.5 | `{ data: { …, country, ip_hmac, user_agent_hash, metadata (sanitized) } }` |
 | `GET /subjects?per_page=` | §3.6 | `{ data: [ { subject, masked, devices, sessions, last_seen_at } ], meta }` — searchable subject list (masked ids, never raw PII) |
 | `GET /subjects/{subject}/devices` | §3.6 | `{ devices: [...] }` |
 | `GET /subjects/{subject}/sessions` | §3.6 | `{ sessions: [...] }` |

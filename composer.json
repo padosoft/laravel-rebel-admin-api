@@ -1,6 +1,6 @@
 {
   "name": "padosoft/laravel-rebel-admin-api",
-  "description": "Control plane JSON API per Laravel Rebel: metriche, audit, anomalie, provider health, risk rules.",
+  "description": "Control-plane JSON API for Laravel Rebel: security metrics, audit-event explorer, OTP/step-up funnels, provider health, with permission-gated and tenant-scoped read models. Part of padosoft/laravel-rebel-*.",
   "license": "MIT",
   "keywords": [
     "laravel",
@@ -31,6 +31,9 @@
     "pestphp/pest": "^4.0",
     "pestphp/pest-plugin-laravel": "^4.0"
   },
+  "repositories": [
+    { "type": "vcs", "url": "https://github.com/padosoft/laravel-rebel-core" }
+  ],
   "autoload": {
     "psr-4": {
       "Padosoft\\Rebel\\AdminApi\\": "src/"
@@ -51,7 +54,12 @@
   "scripts": {
     "test": "pest",
     "phpstan": "phpstan analyse --memory-limit=512M",
-    "pint": "pint"
+    "pint": "pint",
+    "check": [
+      "pint --test",
+      "@phpstan",
+      "@test"
+    ]
   },
   "config": {
     "sort-packages": true,

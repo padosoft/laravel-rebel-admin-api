@@ -1,0 +1,65 @@
+{
+  "name": "padosoft/laravel-rebel-admin-api",
+  "description": "Control plane JSON API per Laravel Rebel: metriche, audit, anomalie, provider health, risk rules.",
+  "license": "MIT",
+  "keywords": [
+    "laravel",
+    "authentication",
+    "security",
+    "padosoft",
+    "rebel"
+  ],
+  "homepage": "https://github.com/padosoft/laravel-rebel-admin-api",
+  "authors": [
+    {
+      "name": "Padosoft",
+      "email": "support@padosoft.com",
+      "homepage": "https://www.padosoft.com"
+    }
+  ],
+  "require": {
+    "php": "^8.3",
+    "illuminate/contracts": "^12.0|^13.0",
+    "illuminate/support": "^12.0|^13.0",
+    "spatie/laravel-package-tools": "^1.92",
+    "padosoft/laravel-rebel-core": "^0.1"
+  },
+  "require-dev": {
+    "larastan/larastan": "^3.0",
+    "laravel/pint": "^1.18",
+    "orchestra/testbench": "^10.0|^11.0",
+    "pestphp/pest": "^4.0",
+    "pestphp/pest-plugin-laravel": "^4.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Padosoft\\Rebel\\AdminApi\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Padosoft\\Rebel\\AdminApi\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Padosoft\\Rebel\\AdminApi\\RebelAdminApiServiceProvider"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "pest",
+    "phpstan": "phpstan analyse --memory-limit=512M",
+    "pint": "pint"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": {
+      "pestphp/pest-plugin": true,
+      "phpstan/extension-installer": true
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

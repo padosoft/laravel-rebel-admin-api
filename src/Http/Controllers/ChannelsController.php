@@ -104,17 +104,20 @@ final class ChannelsController
 
     /**
      * A "send" is any request/dispatch of a one-time credential on a channel: the explicit
-     * `*.requested` / `*.sent` events emitted by email-otp, the OTP drivers and the channel
-     * adapters (laravel-rebel-channels) all match.
+     * `*.requested` / `*.sent` events emitted by email-otp and the OTP drivers, plus the
+     * `channel.verification.started` event emitted by the laravel-rebel-channels router when a
+     * provider (Twilio, Vonage…) actually dispatches a code.
      */
     private function isSend(string $type): bool
     {
-        return str_ends_with($type, '.requested') || str_ends_with($type, '.sent');
+        return str_ends_with($type, '.requested')
+            || str_ends_with($type, '.sent')
+            || $type === 'channel.verification.started';
     }
 
     private function isVerify(string $type): bool
     {
-        return str_ends_with($type, '.verified');
+        return str_ends_with($type, '.verified') || $type === 'channel.verification.approved';
     }
 
     /**

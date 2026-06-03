@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-03
+
+### Fixed
+- **Channel Performance counts router sends.** `channels/performance` now also counts the
+  `channel.verification.started` / `channel.verification.approved` events emitted by
+  laravel-rebel-channels (Twilio, Vonage, …) as sends/verifications — previously only
+  `*.requested` / `*.sent` matched, so real SMS/voice sends showed zero.
+
 ## [0.1.4] - 2026-06-03
 
 ### Changed

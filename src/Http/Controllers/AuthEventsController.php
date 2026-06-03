@@ -16,9 +16,15 @@ use Padosoft\Rebel\Core\Models\RebelAuthEvent;
  *
  * Looks across tenants by default; pass `?tenant=<id>` to scope. Keyset pagination uses
  * a compound (created_at, id) cursor so rows sharing a timestamp are never skipped.
+ *
+ * `show` returns a single sanitized event for the §3.5 detail drawer — metadata is
+ * surfaced but any sensitive key (OTP, secret, token, code, …) is redacted, never returned.
  */
 final class AuthEventsController
 {
+    /** Metadata keys that must never leave the API, even though they are not stored in clear. */
+    private const REDACTED_KEYS = ['otp', 'code', 'secret', 'token', 'password', 'pin', 'challenge'];
+
     public function __invoke(Request $request): JsonResponse
     {
         $perPage = max(1, min(100, $request->integer('per_page', 25)));
@@ -72,5 +78,76 @@ final class AuthEventsController
             'next_before' => $last?->getAttribute('created_at'),
             'next_before_id' => $last?->getAttribute('id'),
         ]);
+    }
+
+    /** GET {prefix}/auth-events/{id} — the sanitized detail of one event. */
+    public function show(Request $request, string $id): JsonResponse
+    {
+        $query = RebelAuthEvent::query()->withoutGlobalScopes()->whereKey($id);
+
+        $tenant = $request->string('tenant')->toString();
+        if ($tenant !== '') {
+            $query->where('tenant_id', $tenant);
+        }
+
+        $event = $query->first();
+
+        if ($event === null) {
+            return response()->json(['error' => 'not_found'], 404);
+        }
+
+        /** @var array<string, mixed> $metadata */
+        $metadata = is_array($event->getAttribute('metadata')) ? $event->getAttribute('metadata') : [];
+
+        return response()->json([
+            'data' => [
+                'id' => $event->getAttribute('id'),
+                'event_type' => $event->getAttribute('event_type'),
+                'guard' => $event->getAttribute('guard'),
+                'subject_type' => $event->getAttribute('subject_type'),
+                'channel' => $event->getAttribute('channel'),
+                'provider' => $event->getAttribute('provider'),
+                'purpose' => $event->getAttribute('purpose'),
+                'aal' => $event->getAttribute('aal'),
+                'amr' => $event->getAttribute('amr'),
+                'risk_score' => $event->getAttribute('risk_score'),
+                'identifier_hmac' => $event->getAttribute('identifier_hmac'),
+                'ip_hmac' => $event->getAttribute('ip_hmac'),
+                'created_at' => $event->getAttribute('created_at'),
+                'metadata' => $this->sanitize($metadata),
+            ],
+        ]);
+    }
+
+    /**
+     * Redact any sensitive key (recursively) so a one-time secret never leaks through metadata.
+     *
+     * @param  array<string, mixed>  $metadata
+     * @return array<string, mixed>
+     */
+    private function sanitize(array $metadata): array
+    {
+        $clean = [];
+        foreach ($metadata as $key => $value) {
+            $lower = strtolower((string) $key);
+            $sensitive = false;
+            foreach (self::REDACTED_KEYS as $needle) {
+                if (str_contains($lower, $needle)) {
+                    $sensitive = true;
+                    break;
+                }
+            }
+
+            if ($sensitive) {
+                $clean[$key] = '[redacted]';
+            } elseif (is_array($value)) {
+                /** @var array<string, mixed> $value */
+                $clean[$key] = $this->sanitize($value);
+            } else {
+                $clean[$key] = $value;
+            }
+        }
+
+        return $clean;
     }
 }

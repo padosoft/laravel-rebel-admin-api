@@ -32,4 +32,16 @@ return [
     */
     'middleware' => [],
 
+    /*
+    |--------------------------------------------------------------------------
+    | GDPR retention tiers
+    |--------------------------------------------------------------------------
+    | Surfaced by GET {prefix}/compliance/overview as the retention summary. Purely
+    | descriptive metadata for the panel; pruning itself lives in the core/retention layer.
+    */
+    'retention_tiers' => [
+        ['name' => 'detail', 'days' => 30],
+        ['name' => 'aggregate', 'days' => 365],
+    ],
+
 ];

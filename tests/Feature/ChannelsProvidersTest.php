@@ -7,6 +7,21 @@ it('rejects unauthenticated channel/provider requests with 401', function (): vo
     $this->getJson('/rebel/admin/api/v1/providers/health')->assertStatus(401);
 });
 
+it('counts laravel-rebel-channels router sends (channel.verification.started/approved)', function (): void {
+    // The channels router (Twilio etc.) emits these — they must count as send/verify.
+    recordEvent('channel.verification.started', 'sms', ['provider' => 'twilio']);
+    recordEvent('channel.verification.started', 'sms', ['provider' => 'twilio']);
+    recordEvent('channel.verification.approved', 'sms', ['provider' => 'twilio']);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/channels/performance?days=1')
+        ->assertOk()
+        ->assertJsonPath('rows.0.channel', 'sms')
+        ->assertJsonPath('rows.0.sent', 2)
+        ->assertJsonPath('rows.0.provider', 'twilio')
+        ->assertJsonPath('rows.0.verify_conversion', 0.5);
+});
+
 it('returns per-channel performance rows without fabricating cost/latency', function (): void {
     recordEvent('email_otp.sent', 'sms');
     recordEvent('email_otp.sent', 'sms');

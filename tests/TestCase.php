@@ -17,6 +17,10 @@ abstract class TestCase extends Orchestra
      */
     protected function getPackageProviders($app): array
     {
+        // Only core + admin-api are booted. The sibling packages (sessions, ai-guard,
+        // step-up) are exercised through their TABLES — their migrations are loaded below —
+        // without registering their providers, which would pull optional bindings the
+        // control plane never needs (e.g. email-otp's SubjectResolver).
         return [
             RebelCoreServiceProvider::class,
             RebelAdminApiServiceProvider::class,
@@ -37,6 +41,9 @@ abstract class TestCase extends Orchestra
     protected function defineDatabaseMigrations(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../vendor/padosoft/laravel-rebel-core/database/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../vendor/padosoft/laravel-rebel-sessions/database/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../vendor/padosoft/laravel-rebel-ai-guard/database/migrations');
+        $this->loadMigrationsFrom(__DIR__.'/../vendor/padosoft/laravel-rebel-step-up/database/migrations');
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
     }
 }

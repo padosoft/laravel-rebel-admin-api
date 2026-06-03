@@ -27,21 +27,16 @@ it('projects events into hourly buckets and is idempotent', function (): void {
         ->and(MetricBucket::query()->where('event_type', 'login.succeeded')->value('count'))->toBe(2);
 });
 
-it('serves the security overview from the buckets', function (): void {
+it('serves the security overview KPIs from the event log', function (): void {
     app()->instance(ClockInterface::class, new FakeClock(new DateTimeImmutable('2026-01-01 10:30:00')));
 
     recordEvent('login.succeeded');
     recordEvent('login.succeeded');
     recordEvent('login.failed');
 
-    app(MetricsProjector::class)->project(
-        new DateTimeImmutable('2026-01-01 10:00:00'),
-        new DateTimeImmutable('2026-01-01 11:00:00'),
-    );
-
     actingAsAdmin();
-    $totals = $this->getJson('/rebel/admin/api/v1/security/overview')->assertOk()->json('totals');
 
-    expect($totals['login.succeeded'])->toBe(2)
-        ->and($totals['login.failed'])->toBe(1);
+    $this->getJson('/rebel/admin/api/v1/security/overview?days=1')
+        ->assertOk()
+        ->assertJsonPath('kpis.login_requests.value', 3);
 });

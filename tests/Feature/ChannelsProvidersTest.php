@@ -37,6 +37,36 @@ it('reports delivered rate and cost from delivery-receipt webhook events', funct
         ->assertJsonPath('rows.0.cost_currency', 'EUR');
 });
 
+it('credits synchronous delivery channels (Telegram/Discord) with a real delivered rate', function (): void {
+    // Pure delivery channels emit channel.delivery.sent (success) / .failed — the send is its
+    // own receipt. Three delivered + one failed → sent(attempts)=4, delivered_rate=3/4.
+    recordEvent('channel.delivery.sent', 'telegram', ['provider' => 'telegram']);
+    recordEvent('channel.delivery.sent', 'telegram', ['provider' => 'telegram']);
+    recordEvent('channel.delivery.sent', 'telegram', ['provider' => 'telegram']);
+    recordEvent('channel.delivery.failed', 'telegram', ['provider' => 'telegram']);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/channels/performance?days=1')
+        ->assertOk()
+        ->assertJsonPath('rows.0.channel', 'telegram')
+        ->assertJsonPath('rows.0.provider', 'telegram')
+        ->assertJsonPath('rows.0.sent', 4)
+        ->assertJsonPath('rows.0.delivered_rate', 0.75);
+});
+
+it('does not double-count channel.delivery.sent via the generic .sent matcher', function (): void {
+    // The explicit delivery branch must short-circuit so a single delivery.sent counts once.
+    recordEvent('channel.delivery.sent', 'discord', ['provider' => 'discord']);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/channels/performance?days=1')
+        ->assertOk()
+        ->assertJsonPath('rows.0.channel', 'discord')
+        ->assertJsonPath('rows.0.sent', 1)
+        // 1.0 serialises to JSON as `1` (a whole number) — asserted as int.
+        ->assertJsonPath('rows.0.delivered_rate', 1);
+});
+
 it('returns per-channel performance rows without fabricating cost/latency', function (): void {
     recordEvent('email_otp.sent', 'sms');
     recordEvent('email_otp.sent', 'sms');

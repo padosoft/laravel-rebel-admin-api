@@ -18,9 +18,11 @@ use Psr\Clock\ClockInterface;
  *
  * Derived honestly from `rebel_auth_events`: "sent" counts the send/request events on a
  * channel (any `*.requested` / `*.sent` event), and "verify_conversion" relates the
- * `*.verified` events on that channel to its sends. Delivery receipts, fallback, latency and
- * cost are NOT captured anywhere in the event log yet, so they are returned as null (the panel
- * shows an honest "not measured" state) — we never fabricate traffic or telemetry.
+ * `*.verified` events on that channel to its sends. Delivery receipts come from two sources:
+ * the provider's async status webhook (`channel.verification.delivered`, carrying cost), and a
+ * pure delivery channel's synchronous `channel.delivery.sent` / `.failed` (the send is its own
+ * receipt) — both feed `delivered_rate`. Fallback and latency are not measured yet and stay
+ * null (the panel shows an honest "not measured" state); we never fabricate traffic or telemetry.
  */
 final class ChannelsController
 {
@@ -61,6 +63,27 @@ final class ChannelsController
             }
 
             $byChannel[$channel] ??= ['sent' => 0, 'verified' => 0, 'delivered' => 0, 'cost' => 0.0, 'currency' => null, 'providers' => []];
+
+            // Pure delivery channels (Telegram, Discord, ...) emit a synchronous
+            // `channel.delivery.sent` / `.failed` — the send IS its own receipt. Count every
+            // attempt as a send and credit a successful one as delivered, so `delivered_rate`
+            // reflects sent/(sent+failed) honestly. Handled explicitly (and short-circuited) so
+            // `.sent` is not also matched by the generic isSend() below and double-counted.
+            if ($type === 'channel.delivery.sent' || $type === 'channel.delivery.failed') {
+                $byChannel[$channel]['sent']++;
+                if ($provider !== null) {
+                    $byChannel[$channel]['providers'][$provider] = ($byChannel[$channel]['providers'][$provider] ?? 0) + 1;
+                }
+                if ($createdAt !== null) {
+                    $hour = CarbonImmutable::parse($createdAt)->startOfHour()->format('Y-m-d H:i:s');
+                    $sentByHour[$channel][$hour] = ($sentByHour[$channel][$hour] ?? 0) + 1;
+                }
+                if ($type === 'channel.delivery.sent') {
+                    $byChannel[$channel]['delivered']++;
+                }
+
+                continue;
+            }
 
             if ($this->isSend($type)) {
                 $byChannel[$channel]['sent']++;

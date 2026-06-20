@@ -1,5 +1,8 @@
 # Laravel Rebel — Admin API
 
+> Official documentation: https://doc.laravel-rebel.padosoft.com
+
+
 > **A control-plane JSON API for your auth security.** Rebel writes every login, OTP, step-up and channel decision into one audit trail; this package turns that into a clean, permission-gated, tenant-aware **read API**: hourly metrics, a security overview, and a filterable audit-event explorer — ready to power a dashboard. Part of the `padosoft/laravel-rebel-*` suite.
 
 <p align="center">
@@ -259,3 +262,4 @@ composer pint      # code style
 ```
 
 **License:** MIT — see [LICENSE](LICENSE). Part of the [`padosoft/laravel-rebel`](https://github.com/padosoft) suite.
+

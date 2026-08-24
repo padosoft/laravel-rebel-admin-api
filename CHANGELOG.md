@@ -6,6 +6,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-08-24
+
+### Added
+- **Delegation anomaly cases first-class** (rebel-ai-guard ≥ 0.1.3 on the IAM delegation
+  stream): `suggested_actions` for `delegation_exchange_burst` / `delegation_scope_probing`
+  (destructive `suspend_agent` — the action itself lives in the IAM console, the central
+  kill-switch).
+- **`signals` and `suggested_actions` in the LIST payload** (`GET anomalies`): the admin
+  panel fills its case drawer from the list response — without them the Segnali block and
+  the actions were empty for every case type.
+- `release` workflow (workflow_dispatch tag + GitHub release, ecosystem pattern).
+
 ## [0.1.6] - 2026-06-03
 
 ### Added
@@ -101,7 +113,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 - Config file, migration, CI matrix (PHP 8.3/8.4/8.5 × Laravel 12/13), Pest suite,
   PHPStan level max, Pint.
 
-[Unreleased]: https://github.com/padosoft/laravel-rebel-admin-api/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/padosoft/laravel-rebel-admin-api/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/padosoft/laravel-rebel-admin-api/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/padosoft/laravel-rebel-admin-api/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/padosoft/laravel-rebel-admin-api/compare/v0.1.0...v0.1.3
 [0.1.0]: https://github.com/padosoft/laravel-rebel-admin-api/releases/tag/v0.1.0

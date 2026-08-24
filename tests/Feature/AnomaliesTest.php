@@ -30,6 +30,37 @@ it('filters anomalies by status', function (): void {
         ->assertJsonPath('data.0.type', 'sms_pumping');
 });
 
+it('lists signals in the summary payload (the panel drawer reads the list)', function (): void {
+    makeAnomaly('otp_bombing', 'open');
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/anomalies')
+        ->assertOk()
+        ->assertJsonPath('data.0.signals.prefix', '+229');
+});
+
+it('delegation anomaly cases round-trip signals and carry suspend-agent actions', function (): void {
+    $id = makeAnomaly('delegation_scope_probing', 'open', signals: [
+        'agent_id' => 'agt_probe',
+        'events' => 12,
+        'refusal_reasons' => ['delegation_grant_missing' => 9, 'empty_scope_intersection' => 3],
+        'auto_suspended' => true,
+    ]);
+    actingAsAdmin();
+
+    $this->getJson('/rebel/admin/api/v1/anomalies?type=delegation_scope_probing')
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.signals.agent_id', 'agt_probe');
+
+    $this->getJson('/rebel/admin/api/v1/anomalies/'.$id)
+        ->assertOk()
+        ->assertJsonPath('signals.refusal_reasons.delegation_grant_missing', 9)
+        ->assertJsonPath('signals.auto_suspended', true)
+        ->assertJsonPath('suggested_actions.0.key', 'suspend_agent')
+        ->assertJsonPath('suggested_actions.0.destructive', true);
+});
+
 it('shows an anomaly case with signals and suggested actions', function (): void {
     $id = makeAnomaly('sms_pumping', 'open');
     actingAsAdmin();

@@ -165,7 +165,7 @@ Most list endpoints accept the shared query parameters `tenant`, `from`, `to`,
 | `GET /risk-rules` | §3.7 | `{ rules: [...] }` |
 | `POST /risk-rules` | §3.7 | `{ rule: {…} }` (persisted as a **draft** by default) |
 | `POST /risk-rules/simulate` | §3.7 | `{ decision, required_assurance, require_phishing_resistant, allowed_drivers, matched_rules, reasons }` |
-| `GET /anomalies?type=&severity=&status=&cursor=` | §3.8 | `{ data, meta: { next_cursor, has_more } }` |
+| `GET /anomalies?type=&severity=&status=&cursor=` | §3.8 | `{ data: [{ …, signals, suggested_actions }], meta: { next_cursor, has_more } }` — ≥ 0.1.8: `signals` + `suggested_actions` travel in the **list** (the panel drawer reads them from here); delegation cases (`delegation_exchange_burst`, `delegation_scope_probing` from rebel-ai-guard ≥ 0.1.3) carry a destructive `suspend_agent` action |
 | `GET /anomalies/{case}` | §3.8 | `{ id, type, severity, status, signals, timeline, suggested_actions }` |
 | `POST /anomalies/{case}/actions` | §3.8 | `{ ok, action }` (`mitigate` requires `confirm:true`) |
 | `POST /ai/anomalies/{case}/explain` | §3.9 | `{ explanation, confidence, sources }` |

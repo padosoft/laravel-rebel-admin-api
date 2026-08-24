@@ -150,8 +150,12 @@ final class AnomaliesController
     }
 
     /**
+     * I `signals` viaggiano anche nella lista: il pannello riempie il drawer dal
+     * payload di lista (nessun fetch lazy del dettaglio), quindi senza di loro il
+     * blocco Segnali resterebbe vuoto per OGNI tipo di caso.
+     *
      * @param  array<array-key, mixed>  $data
-     * @return array{id: string|null, type: string|null, severity: string|null, status: string|null, events_count: int, opened_at: string|null}
+     * @return array{id: string|null, type: string|null, severity: string|null, status: string|null, events_count: int, opened_at: string|null, signals: array<string, mixed>, suggested_actions: list<array{key: string, label: string, destructive: bool}>}
      */
     private function summary(array $data): array
     {
@@ -162,6 +166,8 @@ final class AnomaliesController
             'status' => $this->str($data['status'] ?? null),
             'events_count' => is_numeric($data['events_count'] ?? null) ? (int) $data['events_count'] : 0,
             'opened_at' => $this->str($data['opened_at'] ?? null),
+            'signals' => $this->decodeSignals($data['signals'] ?? null),
+            'suggested_actions' => $this->suggestedActions($this->str($data['type'] ?? null)),
         ];
     }
 
@@ -174,6 +180,11 @@ final class AnomaliesController
             'sms_pumping' => [['key' => 'block_prefix', 'label' => 'Block originating prefix', 'destructive' => true]],
             'otp_bombing' => [['key' => 'rate_limit', 'label' => 'Tighten OTP rate limit', 'destructive' => false]],
             'credential_stuffing' => [['key' => 'force_step_up', 'label' => 'Force step-up for the guard', 'destructive' => false]],
+            // Delegated-access anomalies (rebel-ai-guard >= 0.1.3 sullo stream IAM):
+            // le azioni si eseguono nel pannello IAM (kill-switch centrale), qui sono
+            // il promemoria operativo — sospendere un agente è destructive.
+            'delegation_exchange_burst' => [['key' => 'suspend_agent', 'label' => 'Suspend the agent (IAM console)', 'destructive' => true]],
+            'delegation_scope_probing' => [['key' => 'suspend_agent', 'label' => 'Suspend the agent (IAM console)', 'destructive' => true]],
             default => [],
         };
     }

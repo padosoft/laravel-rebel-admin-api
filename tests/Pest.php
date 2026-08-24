@@ -73,7 +73,7 @@ function makeDevice(string $subjectId, bool $trusted = true, ?string $tenant = n
 }
 
 /** Insert an anomaly case row directly (mirrors laravel-rebel-ai-guard). */
-function makeAnomaly(string $type = 'sms_pumping', string $status = 'open', ?string $tenant = null): string
+function makeAnomaly(string $type = 'sms_pumping', string $status = 'open', ?string $tenant = null, ?array $signals = null): string
 {
     $id = (string) Str::ulid();
     DB::table('rebel_anomaly_cases')->insert([
@@ -83,7 +83,7 @@ function makeAnomaly(string $type = 'sms_pumping', string $status = 'open', ?str
         'severity' => 'high',
         'status' => $status,
         'dedupe_key' => $type.':'.$id,
-        'signals' => json_encode(['prefix' => '+229', 'velocity' => 'x40']),
+        'signals' => json_encode($signals ?? ['prefix' => '+229', 'velocity' => 'x40']),
         'events_count' => 42,
         'opened_at' => now(),
         'created_at' => now(),
